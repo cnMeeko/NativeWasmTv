@@ -37,7 +37,7 @@ jobs:
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
           mv /tmp/cmdline-tools/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/"
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-27" "build-tools;27.0.3" >/dev/null || true
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-27" "build-tools;27.0.3" >/tmp/sdkmanager.log || true
 
       - name: Verify SDK and accept licenses
         run: |
@@ -65,12 +65,21 @@ jobs:
           java -version
           ./gradlew -v
 
-      - name: Build Debug APK
+      - name: Build Debug APK (log to file)
         working-directory: .
-        run: ./gradlew clean assembleDebug --no-daemon --stacktrace
+        run: |
+          ./gradlew clean assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle-build.log || true
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload CI logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs
+          path: |
+            gradle-build.log
+            /tmp/sdkmanager.log
