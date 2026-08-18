@@ -26,6 +26,24 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
 
+      - name: Set up Android SDK and tools
+        uses: r0adkll/setup-android@v2
+        with:
+          api-levels: '27'
+          target: 'android-27'
+          build-tools: '27.0.3'
+          components: 'platform-tools'
+
+      - name: Verify SDK and show installed packages
+        run: |
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --version || true
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --list || true
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -36,17 +54,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Install Android SDK
-        run: |
-          mkdir -p "$ANDROID_SDK_ROOT"
-          sudo apt-get update
-          sudo apt-get install -y unzip xz-utils
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O /tmp/cmdline-tools.zip
-          unzip -q /tmp/cmdline-tools.zip -d /tmp/
-          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-          mv /tmp/cmdline-tools/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/"
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-27" "build-tools;27.0.3" >/dev/null
-
       - name: Show Java/Gradle info
         run: |
           java -version
@@ -54,7 +61,7 @@ jobs:
 
       - name: Build Debug APK
         working-directory: .
-        run: ./gradlew clean assembleDebug --no-daemon
+        run: ./gradlew clean assembleDebug --no-daemon --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
