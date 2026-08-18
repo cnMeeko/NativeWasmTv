@@ -183,8 +183,9 @@ final class PlaylistManager {
 
     private static void add(Map<String, List<Channel>> groups, String groupName,
             String name, String url, int index) {
-        String safeGroup = groupName == null || groupName.trim().length() == 0
-                ? "在线频道" : groupName.trim();
+        // 将全部分组归一化为单一分组名 "卫视频道"
+        String safeGroup = "卫视频道";
+
         List<Channel> channels = groups.get(safeGroup);
         if (channels == null) {
             channels = new ArrayList<Channel>();
