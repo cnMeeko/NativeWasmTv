@@ -1,4 +1,4 @@
-name: Android CI
+name: Android CI Android4
 
 on:
   push:
@@ -13,39 +13,41 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
       ANDROID_SDK_ROOT: $RUNNER_TEMP/android-sdk
+      PATH: ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.PATH }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 11
+      # 重点改动：编译Android4旧项目必须 JAVA 8，不能JDK11
+      - name: Set up JDK 8
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '8'
           distribution: 'temurin'
 
-      - name: Install Android SDK (manual)
+      - name: Install system lib32 dependencies
         run: |
-          set -eux
-          mkdir -p "$ANDROID_SDK_ROOT"
+          set -e
           sudo apt-get update
-          sudo apt-get install -y unzip xz-utils wget
+          sudo apt-get install -y unzip xz-utils wget lib32stdc++6 lib32z1
+
+      - name: Install Android SDK & Android4.4(API19) components
+        run: |
+          set -e
+          mkdir -p "$ANDROID_SDK_ROOT"
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O /tmp/cmdline-tools.zip
           unzip -q /tmp/cmdline-tools.zip -d /tmp/
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
           mv /tmp/cmdline-tools/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/"
-          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-27" "build-tools;27.0.3" >/tmp/sdkmanager.log || true
 
-      - name: Verify SDK and accept licenses
-        run: |
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          sdkmanager --version || true
-          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
-          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --list || true
+          # Android4.4 API19 + build-tools 24.0.3（适配老旧项目）
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
+            "platform-tools" \
+            "platforms;android-19" \
+            "build-tools;24.0.3" >/tmp/sdkmanager.log
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -56,19 +58,20 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle-wrapper.properties','**/build.gradle','**/app/build.gradle') }}
+          key: ${{ runner.os }}-gradle-android4-${{ hashFiles('**/gradle-wrapper.properties','**/build.gradle','**/app/build.gradle') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            ${{ runner.os }}-gradle-android4-
 
       - name: Show Java/Gradle info
         run: |
           java -version
           ./gradlew -v
 
-      - name: Build Debug APK (log to file)
-        working-directory: .
+      - name: Build Debug APK
         run: |
-          ./gradlew clean assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle-build.log || true
+          set -e
+          # 旧AGP不建议强制--no-daemon，容易构建失败
+          ./gradlew clean assembleDebug --stacktrace 2>&1 | tee gradle-build.log
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
